@@ -110,6 +110,13 @@ impl SsoClient {
         Ok(self.http.get(url).send().await?.error_for_status()?)
     }
 
+    /// 已有 TGC 时，经 CAS 为 `service` 落票（校外 service 应为 WebVPN 包装后的教务回调）。
+    pub async fn goto_service(&self, service: &str) -> Result<reqwest::Response> {
+        let mut cas = Url::parse(DEFAULT_CAS_LOGIN)?;
+        cas.query_pairs_mut().append_pair("service", service);
+        Ok(self.http.get(cas).send().await?.error_for_status()?)
+    }
+
     pub async fn login_for_service(
         &self,
         creds: &Credentials,

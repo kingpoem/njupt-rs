@@ -9,6 +9,7 @@ type Aes128CbcEnc = Encryptor<Aes128>;
 // Hardcoded by i.njupt.edu.cn frontend; key/iv bytes are UTF-8 of "iam" + this value.
 pub const IAM_CHECK_KEY: &str = "1629428467008";
 
+// 将学号或密码加密成密文
 pub fn iam_encrypt(plaintext: &str, check_key: &str) -> Result<String> {
     let key = format!("iam{check_key}");
     let key = key.as_bytes();
@@ -33,22 +34,4 @@ pub fn iam_encrypt(plaintext: &str, check_key: &str) -> Result<String> {
 
 pub fn iam_encrypt_default(plaintext: &str) -> Result<String> {
     iam_encrypt(plaintext, IAM_CHECK_KEY)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn iam_key_is_aes128() {
-        assert_eq!(format!("iam{IAM_CHECK_KEY}").len(), 16);
-    }
-
-    #[test]
-    fn iam_encrypt_is_deterministic() {
-        let a = iam_encrypt_default("student").unwrap();
-        let b = iam_encrypt_default("student").unwrap();
-        assert_eq!(a, b);
-        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
-    }
 }

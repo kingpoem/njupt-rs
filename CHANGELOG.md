@@ -13,4 +13,6 @@
 
 - Init basic infra
 
+- Support fetch curriculum
+
 
