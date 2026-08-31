@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Bug Fixes
+
+- Rename scriipts to scripts
+
+
 ### Features
 
 - Init basic infra
