@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+[[ -n "${NJUPT_CHANGELOG_HOOK:-}" ]] && exit 0
+[[ "$(git symbolic-ref --short HEAD 2>/dev/null || true)" == "main" ]] || exit 0
+
+git_dir="$(git rev-parse --git-path .)"
+if [[ -d "${git_dir}/rebase-merge" || -d "${git_dir}/rebase-apply" || -f "${git_dir}/MERGE_HEAD" ]]; then
+  exit 0
+fi
+
+command -v git-cliff >/dev/null 2>&1 || exit 0
+
+cd "$(git rev-parse --show-toplevel)"
+git cliff -o CHANGELOG.md
+git add CHANGELOG.md
+git diff --cached --quiet -- CHANGELOG.md && exit 0
+
+export NJUPT_CHANGELOG_HOOK=1
+git commit --amend --no-edit --no-verify --only CHANGELOG.md >/dev/null

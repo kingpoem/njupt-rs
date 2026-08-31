@@ -1,0 +1,26 @@
+[package]
+name = "njupt"
+version = "0.1.0"
+edition = "2024"
+description = "NJUPT campus service API library (SSO / WebVPN / 教务 / 校园卡)"
+license = "MIT"
+
+[dependencies]
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+cipher = { version = "0.4", features = ["block-padding", "alloc"] }
+hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = [
+    "cookies",
+    "gzip",
+    "json",
+    "rustls-tls",
+] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+url = "2"
+
+[dev-dependencies]
+dotenvy = "0.15"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

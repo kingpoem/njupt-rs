@@ -1,0 +1,11 @@
+AGENTS.md
+.env
+
+# cloned reference repos
+/references/*
+!/references/.gitkeep
+
+
+# Added by cargo
+
+/target
