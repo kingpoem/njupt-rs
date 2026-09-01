@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Bug Fixes
+
+- Fix select course api error
+
+## [0.0.2] - 2026-09-01
+
 ### Features
 
 - Delete library

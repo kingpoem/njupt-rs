@@ -9,7 +9,9 @@ pub mod raw;
 pub mod schedule;
 pub mod selected;
 
-pub use cache::{CacheKey, CacheKind, Cached, FetchMode, JwxtCache};
+pub use cache::{
+    CacheKey, CacheKind, Cached, FetchMode, JwxtCache, DEFAULT_CACHE_TTL, SCHEDULE_CACHE_TTL,
+};
 pub use course_select::{
     ClassDetailQuery, SelectableSearch, SelectionContext, SelectionTab, COURSE_SELECT_GNMKDM,
 };

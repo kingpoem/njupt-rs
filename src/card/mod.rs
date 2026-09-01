@@ -3,10 +3,12 @@ pub mod balance;
 pub use balance::CardBalance;
 
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use reqwest::Client;
 use serde_json::Value;
 
+use crate::jwxt::DEFAULT_CACHE_TTL;
 use crate::login::sso::SsoClient;
 use crate::login::webvpn::{WebVpn, ENLINK_CAS_CALLBACK};
 use crate::login::{default_http_client, Credentials};
@@ -17,9 +19,15 @@ pub const PORTAL_HOME: &str = "https://i.njupt.edu.cn/portal";
 pub const YKT_BALANCE_PATH: &str = "/portal/api/getYktYE";
 
 #[derive(Debug, Clone)]
+struct BalanceCacheEntry {
+    value: Value,
+    stored_at: Instant,
+}
+
+#[derive(Debug, Clone)]
 pub struct Card {
     http: Client,
-    balance_cache: Arc<Mutex<Option<Value>>>,
+    balance_cache: Arc<Mutex<Option<BalanceCacheEntry>>>,
 }
 
 impl Card {
@@ -59,15 +67,25 @@ impl Card {
     }
 
     pub(crate) fn balance_cache_get(&self) -> Option<Value> {
-        self.balance_cache
-            .lock()
-            .ok()
-            .and_then(|g| g.as_ref().cloned())
+        let mut guard = self.balance_cache.lock().ok()?;
+        match guard.as_ref() {
+            Some(entry) if entry.stored_at.elapsed() < DEFAULT_CACHE_TTL => {
+                Some(entry.value.clone())
+            }
+            Some(_) => {
+                *guard = None;
+                None
+            }
+            None => None,
+        }
     }
 
     pub(crate) fn balance_cache_store(&self, value: Value) {
         if let Ok(mut guard) = self.balance_cache.lock() {
-            *guard = Some(value);
+            *guard = Some(BalanceCacheEntry {
+                value,
+                stored_at: Instant::now(),
+            });
         }
     }
 }

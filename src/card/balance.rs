@@ -5,6 +5,7 @@ use super::{Card, PORTAL_BASE, YKT_BALANCE_PATH};
 use crate::jwxt::{Cached, FetchMode};
 use crate::utils::{Error, Result};
 
+
 #[derive(Debug, Clone, Serialize)]
 pub struct CardBalance {
     pub amount: f64,

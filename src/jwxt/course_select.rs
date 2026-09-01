@@ -19,6 +19,8 @@ pub struct SelectionTab {
     pub name: String,
     pub kklxdm: String,
     pub xkkz_id: String,
+    /// 页签 onclick 第 5 参；PartDisplay 校验用，缺则服务端返回「加密串错误」
+    pub xkkz_xh: String,
 }
 
 /// 网上选课页上下文：隐藏域 + 选课板块 tab。
@@ -93,19 +95,28 @@ impl Jwxt {
         let tabs = parse_selection_tabs(&html);
 
         if let Some(tab) = tabs.first() {
+            let njdm = fields.get("njdm_id").cloned().unwrap_or_default();
+            let zyh = fields.get("zyh_id").cloned().unwrap_or_default();
             let form = [
                 ("xkkz_id", tab.xkkz_id.as_str()),
-                ("xszxzt", "1"),
+                ("kklxdm", tab.kklxdm.as_str()),
+                ("xszxzt", fields.get("xszxzt").map(String::as_str).unwrap_or("1")),
+                ("njdm_id", njdm.as_str()),
+                ("zyh_id", zyh.as_str()),
                 ("kspage", "0"),
+                ("jspage", "0"),
             ];
             let display = self
                 .post_form(&Self::select_path(DISPLAY_PATH), &referer, &form)
                 .await?;
             if !looks_like_error_page(&display) {
                 for (k, v) in parse_hidden_inputs(&display) {
-                    fields.entry(k).or_insert(v);
+                    fields.insert(k, v);
                 }
             }
+            fields.insert("xkkz_id".into(), tab.xkkz_id.clone());
+            fields.insert("xkkz_xh".into(), tab.xkkz_xh.clone());
+            fields.insert("kklxdm".into(), tab.kklxdm.clone());
         }
 
         Ok(SelectionContext { fields, tabs })
@@ -118,11 +129,16 @@ impl Jwxt {
         query: &SelectableSearch,
     ) -> Result<Value> {
         self.ensure_session().await?;
+        let tab = ctx
+            .tab_by_kklxdm(&query.kklxdm)
+            .ok_or_else(|| Error::Unexpected(format!("unknown kklxdm {}", query.kklxdm)))?;
         let referer = self.select_referer();
         let mut form = base_student_form(ctx);
         form.insert("xkxnm".into(), query.year.to_string());
         form.insert("xkxqm".into(), query.term.xqm().into());
         form.insert("kklxdm".into(), query.kklxdm.clone());
+        form.insert("xkkz_id".into(), tab.xkkz_id.clone());
+        form.insert("xkkz_xh".into(), tab.xkkz_xh.clone());
         form.insert("kspage".into(), query.page_start.to_string());
         form.insert("jspage".into(), query.page_end.to_string());
         if let Some(filter) = &query.filter {
@@ -195,39 +211,67 @@ impl Jwxt {
 
 fn base_student_form(ctx: &SelectionContext) -> BTreeMap<String, String> {
     let keys = [
+        "rwlx",
+        "xklc",
+        "xkly",
         "bklx_id",
+        "sfkkjyxdxnxq",
+        "kzkcgs",
         "xqh_id",
+        "gnjkxdnj",
+        "zyh_id",
         "zyfx_id",
         "njdm_id",
+        "njdm_id_1",
+        "zyh_id_1",
         "bh_id",
+        "bjgkczxbbjwcx",
         "xbm",
         "xslbdm",
+        "mzm",
+        "xz",
         "ccdm",
         "xsbj",
-        "zyh_id",
-        "jg_id",
-        "xkly",
-        "rwlx",
-        "kkbk",
-        "kkbkdj",
-        "sfkkjyxdxnxq",
         "sfkknj",
         "sfkkzy",
         "kzybkxy",
         "sfznkx",
         "zdkxms",
         "sfkxq",
+        "bhbcyxkjxb",
         "sfkcfx",
+        "kkbk",
+        "kkbkdj",
+        "bklbkcj",
         "sfkgbcx",
         "sfrxtgkcxd",
         "tykczgxdcs",
+        "bbhzxjxb",
+        "zxgbxkkg",
         "rlkz",
         "xkzgbj",
+        "jxbzb",
     ];
     let mut form = BTreeMap::new();
     for key in keys {
         if let Some(v) = ctx.field(key) {
             form.insert(key.into(), v.into());
+        }
+    }
+    let jg = ctx
+        .field("jg_id")
+        .filter(|v| !v.is_empty())
+        .or_else(|| ctx.field("jg_id_1"))
+        .unwrap_or("");
+    form.insert("jg_id".into(), jg.into());
+    if !form.contains_key("njdm_id_1") {
+        if let Some(v) = ctx.field("njdm_id") {
+            form.insert("njdm_id_1".into(), v.into());
+        }
+    }
+    if !form.contains_key("zyh_id_1") {
+        if let Some(v) = ctx.field("zyh_id") {
+            form.insert("zyh_id_1".into(), v.into());
         }
     }
     form
@@ -245,9 +289,17 @@ fn parse_json_or_err(raw: &str, label: &str) -> Result<Value> {
             truncate(raw, 200)
         )));
     }
-    serde_json::from_str(raw).map_err(|e| {
+    let value: Value = serde_json::from_str(raw).map_err(|e| {
         Error::Unexpected(format!("{label} json: {e}; body={}", truncate(raw, 200)))
-    })
+    })?;
+    if value.get("flag").and_then(|f| f.as_str()) == Some("0") {
+        let msg = value
+            .get("msg")
+            .and_then(|m| m.as_str())
+            .unwrap_or("unknown");
+        return Err(Error::Unexpected(format!("{label}: {msg}")));
+    }
+    Ok(value)
 }
 
 fn reject_permission_page(html: &str, label: &str) -> Result<()> {
@@ -322,13 +374,15 @@ fn parse_selection_tabs(html: &str) -> Vec<SelectionTab> {
         if !quoted.contains("queryCourse") && !quoted.contains("queryCourseByKklxdm") {
             continue;
         }
+        // queryCourse(this, kklxdm, xkkz_id, njdm_id, zyh_id, xkkz_xh)
         let args = single_quoted_args(quoted);
-        if args.len() < 2 {
+        if args.len() < 5 {
             continue;
         }
         let kklxdm = args[0].clone();
         let xkkz_id = args[1].clone();
-        if kklxdm.is_empty() || xkkz_id.is_empty() {
+        let xkkz_xh = args[4].clone();
+        if kklxdm.is_empty() || xkkz_id.is_empty() || xkkz_xh.is_empty() {
             continue;
         }
         let name = nearest_tab_label(html, abs).unwrap_or_default();
@@ -342,6 +396,7 @@ fn parse_selection_tabs(html: &str) -> Vec<SelectionTab> {
             name,
             kklxdm,
             xkkz_id,
+            xkkz_xh,
         });
     }
     tabs
@@ -403,8 +458,8 @@ mod tests {
         let html = r#"
         <input type="hidden" name="njdm_id" value="2023"/>
         <input type="hidden" name="zyh_id" id="zyh" value="0801"/>
-        <a role="tab" onclick="queryCourse(this,'01','AAA111')">主修课程</a>
-        <a role="tab" onclick="queryCourse(this,'10','BBB222')">通识选修</a>
+        <a role="tab" onclick="queryCourse(this,'01','AAA111','2023','1401','XHAAA')">主修课程</a>
+        <a role="tab" onclick="queryCourse(this,'10','BBB222','2023','1401','XHBBB')">通识选修</a>
         "#;
         let fields = parse_hidden_inputs(html);
         assert_eq!(fields.get("njdm_id").unwrap(), "2023");
@@ -413,7 +468,9 @@ mod tests {
         assert_eq!(tabs.len(), 2);
         assert_eq!(tabs[0].kklxdm, "01");
         assert_eq!(tabs[0].xkkz_id, "AAA111");
+        assert_eq!(tabs[0].xkkz_xh, "XHAAA");
         assert_eq!(tabs[0].name, "主修课程");
         assert_eq!(tabs[1].kklxdm, "10");
+        assert_eq!(tabs[1].xkkz_xh, "XHBBB");
     }
 }

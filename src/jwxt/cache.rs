@@ -1,18 +1,24 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::Value;
 
 use super::Term;
 
+/// 课表默认缓存时长。
+pub const SCHEDULE_CACHE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+/// 其余教务/校园卡数据默认缓存时长。
+pub const DEFAULT_CACHE_TTL: Duration = Duration::from_secs(3 * 60 * 60);
+
 /// 查询时如何使用内存缓存。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum FetchMode {
-    /// 有缓存则直接返回，否则请求正方并写入（默认）。
+    /// 有未过期缓存则直接返回，否则请求并写入（默认）。
     #[default]
     CacheFirst,
-    /// 忽略缓存，强制请求正方并覆盖写入（下拉刷新）。
+    /// 忽略缓存，强制请求并覆盖写入（下拉刷新）。
     NetworkOnly,
 }
 
@@ -46,6 +52,15 @@ pub enum CacheKind {
     DeferredExams,
     Selected,
     Profile,
+}
+
+impl CacheKind {
+    pub fn ttl(self) -> Duration {
+        match self {
+            Self::Schedule => SCHEDULE_CACHE_TTL,
+            _ => DEFAULT_CACHE_TTL,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -91,11 +106,27 @@ impl CacheKey {
     pub fn profile() -> Self {
         Self::new(CacheKind::Profile, None, None)
     }
+
+    pub fn ttl(self) -> Duration {
+        self.kind.ttl()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CacheEntry {
+    value: Value,
+    stored_at: Instant,
+}
+
+impl CacheEntry {
+    fn fresh(&self, ttl: Duration) -> bool {
+        self.stored_at.elapsed() < ttl
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct JwxtCache {
-    entries: HashMap<CacheKey, Value>,
+    entries: HashMap<CacheKey, CacheEntry>,
 }
 
 impl JwxtCache {
@@ -103,12 +134,28 @@ impl JwxtCache {
         Self::default()
     }
 
-    pub fn get(&self, key: &CacheKey) -> Option<Value> {
-        self.entries.get(key).cloned()
+    pub fn get(&mut self, key: &CacheKey) -> Option<Value> {
+        let expired = match self.entries.get(key) {
+            Some(entry) if entry.fresh(key.ttl()) => {
+                return Some(entry.value.clone());
+            }
+            Some(_) => true,
+            None => false,
+        };
+        if expired {
+            self.entries.remove(key);
+        }
+        None
     }
 
     pub fn insert(&mut self, key: CacheKey, value: Value) {
-        self.entries.insert(key, value);
+        self.entries.insert(
+            key,
+            CacheEntry {
+                value,
+                stored_at: Instant::now(),
+            },
+        );
     }
 
     pub fn invalidate(&mut self, key: &CacheKey) -> bool {
@@ -131,8 +178,8 @@ impl JwxtCache {
         self.entries.is_empty()
     }
 
-    pub fn contains(&self, key: &CacheKey) -> bool {
-        self.entries.contains_key(key)
+    pub fn contains(&mut self, key: &CacheKey) -> bool {
+        self.get(key).is_some()
     }
 }
 
@@ -178,7 +225,7 @@ impl SharedCache {
     pub fn contains(&self, key: &CacheKey) -> bool {
         self.inner
             .lock()
-            .map(|c| c.contains(key))
+            .map(|mut c| c.contains(key))
             .unwrap_or(false)
     }
 }
@@ -213,5 +260,27 @@ mod tests {
     #[test]
     fn fetch_mode_default_is_cache_first() {
         assert_eq!(FetchMode::default(), FetchMode::CacheFirst);
+    }
+
+    #[test]
+    fn schedule_ttl_is_month_others_three_hours() {
+        assert_eq!(CacheKind::Schedule.ttl(), SCHEDULE_CACHE_TTL);
+        assert_eq!(CacheKind::Grades.ttl(), DEFAULT_CACHE_TTL);
+        assert_eq!(CacheKind::Profile.ttl(), DEFAULT_CACHE_TTL);
+    }
+
+    #[test]
+    fn expired_entry_is_ignored() {
+        let mut cache = JwxtCache::new();
+        let key = CacheKey::grades(Some(2025), Some(Term::First));
+        cache.entries.insert(
+            key,
+            CacheEntry {
+                value: json!(1),
+                stored_at: Instant::now() - DEFAULT_CACHE_TTL - Duration::from_secs(1),
+            },
+        );
+        assert!(cache.get(&key).is_none());
+        assert!(!cache.entries.contains_key(&key));
     }
 }
