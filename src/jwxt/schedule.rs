@@ -1,7 +1,10 @@
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{Jwxt, SCHEDULE_GNMKDM, Term, f64_field, map_array, parse_json_value, str_field};
+use super::{
+    CacheKey, Cached, FetchMode, Jwxt, SCHEDULE_GNMKDM, Term, f64_field, map_array, parse_json_value,
+    str_field,
+};
 use crate::utils::Result;
 
 #[derive(Debug, Clone, Serialize)]
@@ -108,26 +111,38 @@ impl Schedule {
 }
 
 impl Jwxt {
-    pub async fn student_schedule(&self, year: u32, term: Term) -> Result<Schedule> {
-        Ok(Schedule::from_response(
-            self.student_schedule_json(year, term).await?,
-        ))
+    pub async fn student_schedule(
+        &self,
+        year: u32,
+        term: Term,
+        mode: FetchMode,
+    ) -> Result<Cached<Schedule>> {
+        let cached = self.student_schedule_json(year, term, mode).await?;
+        Ok(cached.map(Schedule::from_response))
     }
 
-    pub async fn student_schedule_json(&self, year: u32, term: Term) -> Result<Value> {
-        self.ensure_session().await?;
-        let year_s = year.to_string();
-        let referer = format!(
-            "kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm={SCHEDULE_GNMKDM}&layout=default"
-        );
-        let path = format!("kbcx/xskbcx_cxXsKb.html?gnmkdm={SCHEDULE_GNMKDM}");
-        let raw = self
-            .post_form(
-                &path,
-                &referer,
-                &[("xnm", year_s.as_str()), ("xqm", term.xqm())],
-            )
-            .await?;
-        parse_json_value(&raw, "schedule")
+    pub async fn student_schedule_json(
+        &self,
+        year: u32,
+        term: Term,
+        mode: FetchMode,
+    ) -> Result<Cached<Value>> {
+        self.cached_json(CacheKey::schedule(year, term), mode, async {
+            self.ensure_session().await?;
+            let year_s = year.to_string();
+            let referer = format!(
+                "kbcx/xskbcx_cxXskbcxIndex.html?gnmkdm={SCHEDULE_GNMKDM}&layout=default"
+            );
+            let path = format!("kbcx/xskbcx_cxXsKb.html?gnmkdm={SCHEDULE_GNMKDM}");
+            let raw = self
+                .post_form(
+                    &path,
+                    &referer,
+                    &[("xnm", year_s.as_str()), ("xqm", term.xqm())],
+                )
+                .await?;
+            parse_json_value(&raw, "schedule")
+        })
+        .await
     }
 }

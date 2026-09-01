@@ -1,7 +1,10 @@
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{GRADES_GNMKDM, Jwxt, Term, f64_field, map_items, opt_f64_field, parse_query_result, str_field};
+use super::{
+    CacheKey, Cached, FetchMode, GRADES_GNMKDM, Jwxt, Term, f64_field, map_items, opt_f64_field,
+    parse_query_result, str_field,
+};
 use crate::utils::Result;
 
 #[derive(Debug, Clone, Serialize)]
@@ -80,8 +83,10 @@ impl Jwxt {
         &self,
         year: Option<u32>,
         term: Option<Term>,
-    ) -> Result<GradeList> {
-        Ok(GradeList::from_response(self.student_grades_json(year, term).await?))
+        mode: FetchMode,
+    ) -> Result<Cached<GradeList>> {
+        let cached = self.student_grades_json(year, term, mode).await?;
+        Ok(cached.map(GradeList::from_response))
     }
 
     /// 正方原始 JSON 响应（含 items 及分页字段）。
@@ -89,12 +94,16 @@ impl Jwxt {
         &self,
         year: Option<u32>,
         term: Option<Term>,
-    ) -> Result<Value> {
-        self.ensure_session().await?;
-        let referer =
-            format!("cjcx/cjcx_cxDgXscj.html?gnmkdm={GRADES_GNMKDM}&layout=default");
-        let path = format!("cjcx/cjcx_cxDgXscj.html?doType=query&gnmkdm={GRADES_GNMKDM}");
-        let raw = self.query_items(&path, &referer, year, term, &[]).await?;
-        Ok(parse_query_result(&raw, "grades")?.response)
+        mode: FetchMode,
+    ) -> Result<Cached<Value>> {
+        self.cached_json(CacheKey::grades(year, term), mode, async {
+            self.ensure_session().await?;
+            let referer =
+                format!("cjcx/cjcx_cxDgXscj.html?gnmkdm={GRADES_GNMKDM}&layout=default");
+            let path = format!("cjcx/cjcx_cxDgXscj.html?doType=query&gnmkdm={GRADES_GNMKDM}");
+            let raw = self.query_items(&path, &referer, year, term, &[]).await?;
+            Ok(parse_query_result(&raw, "grades")?.response)
+        })
+        .await
     }
 }

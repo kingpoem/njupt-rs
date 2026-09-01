@@ -1,7 +1,10 @@
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{Jwxt, SELECTED_GNMKDM, Term, f64_field, map_items, parse_query_result, str_field};
+use super::{
+    CacheKey, Cached, FetchMode, Jwxt, SELECTED_GNMKDM, Term, f64_field, map_items,
+    parse_query_result, str_field,
+};
 use crate::utils::Result;
 
 #[derive(Debug, Clone, Serialize)]
@@ -72,23 +75,27 @@ impl Jwxt {
         &self,
         year: Option<u32>,
         term: Option<Term>,
-    ) -> Result<SelectedCourseList> {
-        Ok(SelectedCourseList::from_response(
-            self.selected_courses_json(year, term).await?,
-        ))
+        mode: FetchMode,
+    ) -> Result<Cached<SelectedCourseList>> {
+        let cached = self.selected_courses_json(year, term, mode).await?;
+        Ok(cached.map(SelectedCourseList::from_response))
     }
 
     pub async fn selected_courses_json(
         &self,
         year: Option<u32>,
         term: Option<Term>,
-    ) -> Result<Value> {
-        self.ensure_session().await?;
-        let referer =
-            format!("xkcx/xkmdcx_cxXkmdcxIndex.html?gnmkdm={SELECTED_GNMKDM}&layout=default");
-        let path =
-            format!("xkcx/xkmdcx_cxXkmdcxIndex.html?doType=query&gnmkdm={SELECTED_GNMKDM}");
-        let raw = self.query_items(&path, &referer, year, term, &[]).await?;
-        Ok(parse_query_result(&raw, "selected")?.response)
+        mode: FetchMode,
+    ) -> Result<Cached<Value>> {
+        self.cached_json(CacheKey::selected(year, term), mode, async {
+            self.ensure_session().await?;
+            let referer =
+                format!("xkcx/xkmdcx_cxXkmdcxIndex.html?gnmkdm={SELECTED_GNMKDM}&layout=default");
+            let path =
+                format!("xkcx/xkmdcx_cxXkmdcxIndex.html?doType=query&gnmkdm={SELECTED_GNMKDM}");
+            let raw = self.query_items(&path, &referer, year, term, &[]).await?;
+            Ok(parse_query_result(&raw, "selected")?.response)
+        })
+        .await
     }
 }

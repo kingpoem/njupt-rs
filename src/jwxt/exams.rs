@@ -1,7 +1,9 @@
 use serde::Serialize;
 use serde_json::Value;
 
-use super::{EXAMS_GNMKDM, Jwxt, Term, map_items, parse_query_result, str_field};
+use super::{
+    CacheKey, Cached, EXAMS_GNMKDM, FetchMode, Jwxt, Term, map_items, parse_query_result, str_field,
+};
 use crate::utils::Result;
 
 #[derive(Debug, Clone, Serialize)]
@@ -80,34 +82,40 @@ impl Jwxt {
         &self,
         year: Option<u32>,
         term: Option<Term>,
-    ) -> Result<ExamList> {
-        Ok(ExamList::from_response(self.student_exams_json(year, term).await?))
+        mode: FetchMode,
+    ) -> Result<Cached<ExamList>> {
+        let cached = self.student_exams_json(year, term, mode).await?;
+        Ok(cached.map(ExamList::from_response))
     }
 
     pub async fn student_exams_json(
         &self,
         year: Option<u32>,
         term: Option<Term>,
-    ) -> Result<Value> {
-        self.ensure_session().await?;
-        let referer =
-            format!("kwgl/kscx_cxXsksxxIndex.html?gnmkdm={EXAMS_GNMKDM}&layout=default");
-        let path =
-            format!("kwgl/kscx_cxXsksxxIndex.html?doType=query&gnmkdm={EXAMS_GNMKDM}");
-        let raw = self
-            .query_items(
-                &path,
-                &referer,
-                year,
-                term,
-                &[
-                    ("ksmcdmb_id", ""),
-                    ("kch", ""),
-                    ("kc", ""),
-                    ("ksrq", ""),
-                ],
-            )
-            .await?;
-        Ok(parse_query_result(&raw, "exams")?.response)
+        mode: FetchMode,
+    ) -> Result<Cached<Value>> {
+        self.cached_json(CacheKey::exams(year, term), mode, async {
+            self.ensure_session().await?;
+            let referer =
+                format!("kwgl/kscx_cxXsksxxIndex.html?gnmkdm={EXAMS_GNMKDM}&layout=default");
+            let path =
+                format!("kwgl/kscx_cxXsksxxIndex.html?doType=query&gnmkdm={EXAMS_GNMKDM}");
+            let raw = self
+                .query_items(
+                    &path,
+                    &referer,
+                    year,
+                    term,
+                    &[
+                        ("ksmcdmb_id", ""),
+                        ("kch", ""),
+                        ("kc", ""),
+                        ("ksrq", ""),
+                    ],
+                )
+                .await?;
+            Ok(parse_query_result(&raw, "exams")?.response)
+        })
+        .await
     }
 }

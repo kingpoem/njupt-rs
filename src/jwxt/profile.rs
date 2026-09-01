@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::{Jwxt, PROFILE_GNMKDM, parse_profile_fields};
+use super::{CacheKey, Cached, FetchMode, Jwxt, PROFILE_GNMKDM, parse_profile_fields};
 use crate::utils::{Error, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,6 +56,27 @@ impl StudentProfile {
         })
     }
 
+    fn fields_from_json(value: Value) -> Result<BTreeMap<String, String>> {
+        let obj = match value {
+            Value::Object(map) => map,
+            _ => {
+                return Err(Error::Unexpected(
+                    "profile cache: expected json object".into(),
+                ));
+            }
+        };
+        Ok(obj
+            .into_iter()
+            .map(|(k, v)| {
+                let s = match v {
+                    Value::String(s) => s,
+                    other => other.to_string(),
+                };
+                (k, s)
+            })
+            .collect())
+    }
+
     pub fn field(&self, key: &str) -> Option<&str> {
         self.fields.get(key).map(String::as_str)
     }
@@ -66,11 +87,22 @@ impl StudentProfile {
 }
 
 impl Jwxt {
-    pub async fn student_profile(&self) -> Result<StudentProfile> {
-        self.ensure_session().await?;
-        let path =
-            format!("xsxxxggl/xsgrxxwh_cxXsgrxx.html?gnmkdm={PROFILE_GNMKDM}&layout=default");
-        let (_, html) = self.get_text(&path).await?;
-        StudentProfile::from_fields(parse_profile_fields(&html))
+    pub async fn student_profile(&self, mode: FetchMode) -> Result<Cached<StudentProfile>> {
+        let cached = self
+            .cached_json(CacheKey::profile(), mode, async {
+                self.ensure_session().await?;
+                let path = format!(
+                    "xsxxxggl/xsgrxxwh_cxXsgrxx.html?gnmkdm={PROFILE_GNMKDM}&layout=default"
+                );
+                let (_, html) = self.get_text(&path).await?;
+                let profile = StudentProfile::from_fields(parse_profile_fields(&html))?;
+                Ok(profile.as_json())
+            })
+            .await?;
+        let profile = StudentProfile::from_fields(StudentProfile::fields_from_json(cached.data)?)?;
+        Ok(Cached {
+            data: profile,
+            from_cache: cached.from_cache,
+        })
     }
 }

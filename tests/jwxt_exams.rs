@@ -1,16 +1,20 @@
 mod common;
 
-use njupt::jwxt::Term;
+use njupt::jwxt::{FetchMode, Term};
 
 #[tokio::test]
 #[ignore = "needs NJUPT_USERNAME / NJUPT_PASSWORD and network"]
 async fn fetch_student_exams() {
     let jwxt = common::login().await;
     let exams = jwxt
-        .student_exams(Some(2025), Some(Term::Second))
+        .student_exams(Some(2025), Some(Term::Second), FetchMode::CacheFirst)
         .await
         .expect("student_exams");
 
-    assert!(exams.as_json().get("items").is_some());
-    eprintln!("exams: {} 场", exams.items.len());
+    assert!(exams.data.as_json().get("items").is_some());
+    eprintln!(
+        "exams: {} 场, from_cache={}",
+        exams.data.items.len(),
+        exams.from_cache
+    );
 }

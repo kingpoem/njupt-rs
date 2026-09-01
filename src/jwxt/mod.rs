@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod exams;
 pub mod grades;
 pub mod profile;
@@ -5,14 +6,17 @@ pub mod raw;
 pub mod schedule;
 pub mod selected;
 
+pub use cache::{CacheKey, CacheKind, Cached, FetchMode, JwxtCache};
 pub use raw::{
     QueryResult, f64_field, map_array, map_items, opt_f64_field, parse_json_value,
     parse_profile_fields, parse_query_result, str_field,
 };
 
 use reqwest::Client;
+use serde_json::Value;
 use url::Url;
 
+use cache::SharedCache;
 use crate::login::sso::SsoClient;
 use crate::utils::{Error, Result};
 
@@ -25,7 +29,7 @@ pub const EXAMS_GNMKDM: &str = "N358105";
 pub const SELECTED_GNMKDM: &str = "N255010";
 pub const PROFILE_GNMKDM: &str = "N100801";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Term {
     /// 第一学期（正方 `xqm=3`）
     First,
@@ -45,15 +49,72 @@ impl Term {
 #[derive(Debug, Clone)]
 pub struct Jwxt {
     http: Client,
+    cache: SharedCache,
 }
 
 impl Jwxt {
     pub fn with_http(http: Client) -> Self {
-        Self { http }
+        Self {
+            http,
+            cache: SharedCache::default(),
+        }
     }
 
     pub fn http(&self) -> &Client {
         &self.http
+    }
+
+    /// CacheFirst 时返回已缓存的 raw；NetworkOnly 时始终为 `None`。
+    pub(crate) fn cache_lookup(&self, key: &CacheKey, mode: FetchMode) -> Option<Value> {
+        match mode {
+            FetchMode::NetworkOnly => None,
+            FetchMode::CacheFirst => self.cache.get(key),
+        }
+    }
+
+    pub(crate) fn cache_store(&self, key: CacheKey, value: Value) {
+        self.cache.insert(key, value);
+    }
+
+    /// lookup → fetch → store；`from_cache` 表示是否命中内存缓存。
+    pub(crate) async fn cached_json(
+        &self,
+        key: CacheKey,
+        mode: FetchMode,
+        fetch: impl std::future::Future<Output = Result<Value>>,
+    ) -> Result<Cached<Value>> {
+        if let Some(cached) = self.cache_lookup(&key, mode) {
+            return Ok(Cached {
+                data: cached,
+                from_cache: true,
+            });
+        }
+        let value = fetch.await?;
+        self.cache_store(key, value.clone());
+        Ok(Cached {
+            data: value,
+            from_cache: false,
+        })
+    }
+
+    pub fn has_cache(&self, key: &CacheKey) -> bool {
+        self.cache.contains(key)
+    }
+
+    pub fn invalidate_cache(&self, key: &CacheKey) -> bool {
+        self.cache.invalidate(key)
+    }
+
+    pub fn invalidate_cache_kind(&self, kind: CacheKind) {
+        self.cache.invalidate_kind(kind);
+    }
+
+    pub fn clear_cache(&self) {
+        self.cache.clear();
+    }
+
+    pub fn cache_len(&self) -> usize {
+        self.cache.len()
     }
 
     fn target(&self, path: &str) -> Result<Url> {

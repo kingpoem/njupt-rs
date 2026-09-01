@@ -9,7 +9,7 @@ pub use jwxt::grades::{Grade, GradeList};
 pub use jwxt::profile::StudentProfile;
 pub use jwxt::schedule::{Course, PracticeCourse, Schedule, StudentInfo};
 pub use jwxt::selected::{SelectedCourse, SelectedCourseList};
-pub use jwxt::{Jwxt, QueryResult, Term};
+pub use jwxt::{CacheKey, CacheKind, Cached, FetchMode, Jwxt, QueryResult, Term};
 pub use login::{
     Credentials, DirectTransport, SsoClient, WebVpn, encode_host, login_jwxt,
     login_jwxt_via_webvpn, login_webvpn,
