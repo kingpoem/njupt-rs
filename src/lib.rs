@@ -4,6 +4,7 @@ pub mod library;
 pub mod login;
 pub mod utils;
 
+pub use card::{login_card, login_card_via_webvpn, Card, CardBalance};
 pub use jwxt::exams::{Exam, ExamList};
 pub use jwxt::grade_details::{GradeDetail, GradeDetailList};
 pub use jwxt::grades::{Grade, GradeList};
