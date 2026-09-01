@@ -4,8 +4,14 @@ pub mod library;
 pub mod login;
 pub mod utils;
 
-pub use jwxt::{Course, Jwxt, PracticeCourse, Schedule, StudentInfo, Term};
+pub use jwxt::exams::{Exam, ExamList};
+pub use jwxt::grades::{Grade, GradeList};
+pub use jwxt::profile::StudentProfile;
+pub use jwxt::schedule::{Course, PracticeCourse, Schedule, StudentInfo};
+pub use jwxt::selected::{SelectedCourse, SelectedCourseList};
+pub use jwxt::{Jwxt, QueryResult, Term};
 pub use login::{
-    Credentials, SsoClient, WebVpn, login_sso_for_service, login_webvpn,
+    Credentials, DirectTransport, SsoClient, WebVpn, encode_host, login_jwxt,
+    login_jwxt_via_webvpn, login_webvpn,
 };
 pub use utils::{Error, Result};

@@ -15,4 +15,6 @@
 
 - Support fetch curriculum
 
+- Add basic jwxt api
+
 
