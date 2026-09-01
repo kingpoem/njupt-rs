@@ -62,7 +62,7 @@ impl Exam {
 }
 
 impl ExamList {
-    fn from_response(response: Value) -> Self {
+    pub(crate) fn from_response(response: Value) -> Self {
         let items = map_items(&response, Exam::from_value);
         Self { raw: response, items }
     }

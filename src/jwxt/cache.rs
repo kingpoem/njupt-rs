@@ -39,8 +39,11 @@ impl<T> Cached<T> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CacheKind {
     Grades,
+    GradeDetails,
     Schedule,
     Exams,
+    MakeupExams,
+    DeferredExams,
     Selected,
     Profile,
 }
@@ -61,12 +64,24 @@ impl CacheKey {
         Self::new(CacheKind::Grades, year, term)
     }
 
+    pub fn grade_details(year: Option<u32>, term: Option<Term>) -> Self {
+        Self::new(CacheKind::GradeDetails, year, term)
+    }
+
     pub fn schedule(year: u32, term: Term) -> Self {
         Self::new(CacheKind::Schedule, Some(year), Some(term))
     }
 
     pub fn exams(year: Option<u32>, term: Option<Term>) -> Self {
         Self::new(CacheKind::Exams, year, term)
+    }
+
+    pub fn makeup_exams(year: Option<u32>, term: Option<Term>) -> Self {
+        Self::new(CacheKind::MakeupExams, year, term)
+    }
+
+    pub fn deferred_exams(year: Option<u32>, term: Option<Term>) -> Self {
+        Self::new(CacheKind::DeferredExams, year, term)
     }
 
     pub fn selected(year: Option<u32>, term: Option<Term>) -> Self {

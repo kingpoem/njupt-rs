@@ -19,4 +19,6 @@
 
 - Add cache && modify api year and term
 
+- Add grade detail api
+
 

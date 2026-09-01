@@ -5,6 +5,7 @@ pub mod login;
 pub mod utils;
 
 pub use jwxt::exams::{Exam, ExamList};
+pub use jwxt::grade_details::{GradeDetail, GradeDetailList};
 pub use jwxt::grades::{Grade, GradeList};
 pub use jwxt::profile::StudentProfile;
 pub use jwxt::schedule::{Course, PracticeCourse, Schedule, StudentInfo};

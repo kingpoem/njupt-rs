@@ -7,7 +7,6 @@ DEST="${ROOT}/references"
 REPOS=(
   "https://github.com/gaoliang/NJUPT-API"
   "https://github.com/mangofanfan/NJUPT-Suan-API"
-  "https://github.com/NJUPT-NYR/SOPT"
 )
 
 mkdir -p "${DEST}"

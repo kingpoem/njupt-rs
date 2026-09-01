@@ -1,6 +1,8 @@
 pub mod cache;
 pub mod exams;
+pub mod grade_details;
 pub mod grades;
+pub mod makeup;
 pub mod profile;
 pub mod raw;
 pub mod schedule;
@@ -26,6 +28,8 @@ pub const JWGLXT_DDLOGIN_SERVICE: &str = "http://jwglxt.njupt.edu.cn/sso/ddlogin
 pub const SCHEDULE_GNMKDM: &str = "N2151";
 pub const GRADES_GNMKDM: &str = "N305005";
 pub const EXAMS_GNMKDM: &str = "N358105";
+pub const MAKEUP_EXAMS_GNMKDM: &str = "N358110";
+pub const DEFERRED_EXAMS_GNMKDM: &str = "N358115";
 pub const SELECTED_GNMKDM: &str = "N255010";
 pub const PROFILE_GNMKDM: &str = "N100801";
 
