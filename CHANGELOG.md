@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+### Miscellaneous
+
+- Modify readme
+
+## [0.1.0] - 2026-09-01
+
 ### Bug Fixes
 
 - Fix select course api error
