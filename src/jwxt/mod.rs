@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod course_select;
 pub mod exams;
 pub mod grade_details;
 pub mod grades;
@@ -9,6 +10,9 @@ pub mod schedule;
 pub mod selected;
 
 pub use cache::{CacheKey, CacheKind, Cached, FetchMode, JwxtCache};
+pub use course_select::{
+    ClassDetailQuery, SelectableSearch, SelectionContext, SelectionTab, COURSE_SELECT_GNMKDM,
+};
 pub use raw::{
     QueryResult, f64_field, map_array, map_items, opt_f64_field, parse_json_value,
     parse_profile_fields, parse_query_result, str_field,
